@@ -15,3 +15,9 @@ This submission includes third-party material:
 * flow/macros/: LEF, Liberty (with one documented adapter change) and behavioural Verilog views of an SRAM
   macro, and SPICE netlists of the chip's eight SRAM macros, all generated for this project with OpenRAM
   (BSD-3-Clause); see flow/macros/README.md.
+* flow/chip_rev_c/views/: the Liberty views of those OpenRAM macros (BSD-3-Clause, the OpenRAM authors) with their
+  clock-to-output times replaced by SPICE measurements; see flow/chip_rev_c/README.md.
+* flow/config.mk, flow/constraint.sdc and the flow scripts under flow/: adapted from OpenROAD-flow-scripts
+  (BSD-3-Clause, the OpenROAD-flow-scripts authors).
+* flow/chip_rev_c/flow/*.diff: patches against OpenROAD (BSD-3-Clause, the OpenROAD authors), applied as described
+  in flow/chip_rev_c/README.md.

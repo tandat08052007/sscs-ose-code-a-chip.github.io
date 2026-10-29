@@ -24,7 +24,7 @@ import plotstyle as ps  # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 PHYSICAL = ("fill", "tap", "decap", "diode")
-CLASSES = [("flip-flops", ps.SERIES[0]), ("XOR/XNOR", ps.SERIES[1]), ("other logic", ps.SERIES[2])]
+CLASSES = [("flip-flops", ps.CELL_CLASS[0]), ("XOR/XNOR", ps.CELL_CLASS[1]), ("other logic", ps.CELL_CLASS[2])]
 
 
 def cell_class(master: str) -> str | None:
@@ -58,7 +58,7 @@ def draw_chip(ax, path: pathlib.Path | None = None) -> None:
         rects = [Rectangle((r.x0, r.y0), r.x1 - r.x0, r.y1 - r.y0) for r in d.itertuples()]
         ax.add_collection(PatchCollection(rects, facecolor=colour, edgecolor="none", rasterized=True))
     for r in df[df.cls == "macro"].itertuples():
-        ax.add_patch(Rectangle((r.x0, r.y0), r.x1 - r.x0, r.y1 - r.y0, facecolor="#e1e0d9",
+        ax.add_patch(Rectangle((r.x0, r.y0), r.x1 - r.x0, r.y1 - r.y0, facecolor=ps.MEM,
                                edgecolor=ps.INK_2, lw=0.8, zorder=3))
         shape = r.master.replace("sky130_sram_1rw_", "").split("_")[0].replace("x", " × ")
         ax.text((r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2, shape, ha="center", va="center",   # one line: bits × words

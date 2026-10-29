@@ -50,7 +50,7 @@ def jpg(path: pathlib.Path):
 
 def numbers() -> dict:
     j = lambda p: json.loads((R / p).read_text())
-    pw, se = j("fullchip/rev_b/power.json"), j("fullchip/rev_b/sram_energy.json")   # HSKEM-2 revision B, the signed-off chip
+    pw, se = j("fullchip/rev_c/power.json"), j("fullchip/rev_c/sram_energy.json")   # HSKEM-2 revision C, the signed-off chip
     t = pw["window_cycles"] * pw["clock_ns"] * 1e-9
     e = {k: v * 1e-3 * t * 1e6 for k, v in pw["power_mw"].items()}
     e["sram"] = se["sram_energy_per_decaps_uj"]
@@ -68,13 +68,17 @@ def numbers() -> dict:
     import pandas as pd
     c3 = pd.read_csv(R / "fpga/c3_repeat.csv")
     tv = {k: j(f"{d}/tvla_summary.json")["max_abs_t"] for k, d in (("plain", "leakage"), ("masked", "leakage_masked"))}
-    return {"e": e, "e_first": e_first, "gate": se["sram_energy_with_chip_select_gating_uj"], "ntt_e": g,
+    cg = j("fullchip/rev_c/clock_gating_whatif.json")       # the two remedies of Section 9, as in its figure
+    tot, gate = sum(e.values()), se["sram_energy_with_chip_select_gating_uj"]
+    save = tuple(1 - (tot - cg[k] * 1e-3 * t * 1e6 - (e["sram"] - gate)) / tot
+                 for k in ("saved_by_gating_idle_blocks_mw", "saved_upper_estimate_mw"))
+    return {"e": e, "e_first": e_first, "gate": gate, "save": save, "ntt_e": g,
             "fmax": (float(o["fmax_mhz"]), float(n["fmax_mhz"])),
             "at": float(n["at_product"]) / float(o["at_product"]), "area": float(n["cell_area_um2"]) / float(o["cell_area_um2"]),
             "ntt_busy": prof["ntt_busy"] / prof["cycles"], "perm_busy": prof["perm_busy"] / prof["cycles"],
             "c3": (int(c3.result_pass.sum()), len(c3)), "tv": tv, "steps": steps, "streamed": streamed,
             "pk_lat": (float(m0["latency_us_at_fmax"]), float(pk["latency_us_at_fmax"])),
-            "acvp": j("acvp_rtl/keygen_asic.json"), "cells": j("fullchip/rev_b/summary.json")["orfs_metrics"]}
+            "acvp": j("acvp_rtl/keygen_asic.json"), "cells": j("fullchip/rev_c/summary.json")["orfs_metrics"]}
 
 
 def main(out: str = "figures/poster.pdf") -> None:
@@ -152,8 +156,8 @@ def main(out: str = "figures/poster.pdf") -> None:
                    f"{N['steps']['published']:,} cycles (HSKEM-1 → HSKEM-2), as the board confirms.", 22, width=cw)
     ax = fig.add_axes([x + 0.01, 0.12, cw - 0.02, 0.13], zorder=2)
     e = N["e"]; tot = sum(e.values())
-    parts = [("clock network and\nregister clock pins", e["clock"] + e["sequential"], ps.SERIES[0]),
-             ("logic", e["combinational"], ps.SERIES[2]), ("SRAM\nmacros", e["sram"], "#c9c6bb")]
+    parts = [("clock network and\nregister clock pins", e["clock"] + e["sequential"], ps.REG),
+             ("logic", e["combinational"], ps.LOGIC), ("SRAM\nmacros", e["sram"], ps.MEM)]
     left = 0
     for i, (lab, v, colour) in enumerate(parts):
         ax.barh(0, v, left=left, color=colour, height=0.5, edgecolor=ps.SURFACE, linewidth=3)
@@ -164,20 +168,20 @@ def main(out: str = "figures/poster.pdf") -> None:
     ax.set_title(f"A decapsulation on HSKEM-2: {tot:.0f} µJ", fontsize=24, loc="left")
     text(x, 0.11, f"HSKEM-2, the signed-off SKY130 chip of the streamed system, spends {tot:.0f} µJ per decapsulation "
                   f"instead of HSKEM-1's {N['e_first'] / 1e3:.2f} mJ. The rest is set by the integration: gating the clock "
-                  f"of idle blocks and the chip selects of the macros would save roughly 32 to 48 %.",
+                  f"of idle blocks and the chip selects of the macros would save {N['save'][0]:.0%} to {N['save'][1]:.0%}.",
          21, width=cw)
 
     # --- column III
     x = cols[2]
     image(jpg(R / "fpga/board_setup.jpg"), x, 0.52, cw, 0.18)
-    text(x, 0.515, f"The same RTL on the DE25-Nano: {N['c3'][0]}/{N['c3'][1]} two-role ML-KEM runs pass.",
+    text(x, 0.515, f"The same RTL on the DE25-Nano: {N['c3'][0]}/{N['c3'][1]} complete ML-KEM exchanges (both parties on one board) pass.",
          22, width=cw)
     image(nb_png("LEAK_N = 400"), x, 0.33, cw, 0.15)
     text(x, 0.325, f"Simulated TVLA: largest |t| {N['tv']['plain']:.1f} unmasked, {N['tv']['masked']:.1f} with "
                    f"first-order masking (threshold 4.5).", 22, width=cw)
     lessons = ["Weigh a block by how often the system waits for it.",
                "Measure the integrated chip, not only its blocks.",
-               "Check the check: eleven results here first looked right and were not.",
+               "Check the check: thirteen results here first looked right and were not.",
                "Tie the prose to the data: assertions stop the notebook when they part."]
     text(x, 0.26, "What transfers", 32, "bold", accent)
     y = 0.225

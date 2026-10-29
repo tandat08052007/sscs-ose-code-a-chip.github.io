@@ -8,7 +8,7 @@ authors:
     affiliation: "University of Science, VNU-HCM (HCMUS), Faculty of Electronics and Telecommunications"
 license: Apache-2.0
 repository-code: "https://github.com/tandat08052007/sscs-ose-code-a-chip.github.io/tree/isscc27-hskem-pqc-sky130/ISSCC27/submitted_notebooks/HSKEM_PQC_SKY130"
-date-released: "2026-10-18"
+date-released: "2026-10-29"
 keywords:
   - ML-KEM
   - FIPS 203

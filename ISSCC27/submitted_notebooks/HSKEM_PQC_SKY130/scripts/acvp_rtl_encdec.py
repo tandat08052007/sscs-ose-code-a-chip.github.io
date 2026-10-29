@@ -1,4 +1,4 @@
-"""Byte-exact check of ML-KEM-512 encapsulation and decapsulation on the RTL of the signed-off chip (HSKEM-2 revision B).
+"""Byte-exact check of ML-KEM-512 encapsulation and decapsulation on the RTL of the signed-off chip (HSKEM-2 revision C).
 
 For each case t a copy of the full-system testbench runs, over SPI:
   1. deterministic key generation with (d_t, z_t) of the NIST ACVP ML-KEM-512 keyGen vector t (opcode 0x14, k = 2),
@@ -67,11 +67,11 @@ def check(folder, log, out, n):
         npass += good
         res.append(dict(case=t, **ok))
     summary = dict(source='NIST ACVP ML-KEM-512 keyGen (d, z) and encapsulation (m) vectors; expected outputs from '
-                          'golden/mlkem_full.py (ACVP 25/25/10)', design='HSKEM-2 revision B RTL (flow/chip_rev_b/rtl/make_root.sh)',
+                          'golden/mlkem_full.py (ACVP 25/25/10)', design='HSKEM-2 revision C RTL (flow/chip_rev_c/rtl/make_root.sh)',
                    cases=len(ex), passed=npass, details=res)
     out = pathlib.Path(out)
     out.write_text(json.dumps(summary, indent=2) + '\n')
-    print(f'ACVP encapsulation/decapsulation on the revision B RTL: {npass} of {len(ex)} cases byte-exact '
+    print(f'ACVP encapsulation/decapsulation on the revision C RTL: {npass} of {len(ex)} cases byte-exact '
           f'(c, K, decapsulated K, implicit-rejection J)')
     for r in res:
         if not all(r.get(k) for k in ('c', 'K_enc', 'K_dec', 'K_rej')): print(' ', r)
