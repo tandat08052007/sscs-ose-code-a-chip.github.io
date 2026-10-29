@@ -2677,7 +2677,8 @@ try:
     try:
         import klayout.lay as kl
     except ImportError:
-        subprocess.run([sys.executable, "-m", "pip", "install", "-q", "klayout==0.30.7"], check=True)
+        subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--disable-pip-version-check", "klayout==0.30.7"],
+                       check=True, env={**os.environ, "PIP_ROOT_USER_ACTION": "ignore"})   # Colab runs pip as root
         import klayout.lay as kl
     lv = kl.LayoutView()
     lv.set_config("background-color", "#ffffff"); lv.set_config("grid-visible", "false")
