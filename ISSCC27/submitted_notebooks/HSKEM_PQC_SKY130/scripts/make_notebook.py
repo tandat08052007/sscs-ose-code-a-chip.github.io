@@ -1179,7 +1179,7 @@ ps.save_pdf(fig, "packed_ntt_schedule"); plt.show()
 md(r"""
 Both ideas have prior art. FPGA accelerators for Kyber, the scheme standardized as ML-KEM, store coefficient
 pairs in one memory word and run a butterfly unit on each half [13], and microcontroller software merges NTT
-layers [15]. To our knowledge, no design compared in Section 12 combines the two on one single-port,
+layers [15]. To our knowledge, neither [13] nor [14] combines the two on one single-port,
 compiler-generated SRAM. Concurrent work schedules a conflict-free NTT on single-port RAMs for ML-DSA [19], NIST's post-quantum
 signature standard. `rtl/kyber_ntt_engine_packed.sv` keeps the original ports, and
 `golden/packed_ntt_model.py` reproduces its schedule cycle by cycle.
@@ -2246,7 +2246,7 @@ md(r"""
 
 The table compares HSKEM with the compact FPGA design of Xing and Li [13] and the Sapphire
 crypto-processor [14]; platforms differ and Sapphire implements round-1 Kyber, so it gives orders of
-magnitude, not a ranking.
+magnitude, not a ranking. The last three rows are more recent and come from the abstracts of their papers.
 """)
 
 code(r"""
@@ -2278,15 +2278,26 @@ ctx = pd.DataFrame([
     {"design": "Sapphire, TCHES 2019 [14]", "platform": "TSMC 40 nm, 72 MHz",
      "cycles / NTT": 1289, "cycles / decapsulation": "142,309",
      "resources": "processor core: 0.28 mm², 5.69 mW (Kyber round 1, q = 7681)"},
+    {"design": "Nguyen et al., TCAS-I 2025 [22]", "platform": "Artix-7 FPGA, 185 MHz",
+     "cycles / NTT": "–", "cycles / decapsulation": "6.1k (k = 2)",
+     "resources": "complete KEM, three security levels: 5,487 LUTs, 2 DSP, 3.5 BRAM"},
+    {"design": "Fan et al., TVLSI 2026 [23]", "platform": "Artix-7 FPGA, 210 MHz",
+     "cycles / NTT": "–", "cycles / decapsulation": "–",
+     "resources": "complete KEM, three security levels: 13.8k LUTs, 9.6k flip-flops"},
+    {"design": "Nguyen et al., IEEE Access 2025 [24]", "platform": "180 nm CMOS",
+     "cycles / NTT": "–", "cycles / decapsulation": "–",
+     "resources": "three security levels: 3.47 mm² die, 7.37 kB SRAM"},
 ]).set_index("design")
 # decapsulation time at each design's clock, energy where it is known, and the evidence behind each row
 t_ = {"HSKEM, streamed system (this work)": int(fb.decaps_cycles.iloc[0]) / 50,
       "HSKEM-2, signed-off chip (this work)": (pw["window_cycles"] + 1) * pw["clock_ns"] / 1e3,
       "Xing and Li, TCHES 2021 [13]": 41.3, "Sapphire, TCHES 2019 [14]": 142309 / 72}   # [13]: 41.3 µs as published (Table 3)
 ctx["decapsulation [µs]"] = [f"{t_[d]:,.1f}" if d in t_ else "–" for d in ctx.index]
-ctx["energy / decapsulation"] = ["–"] * 4 + [f"{e_tot:.1f} µJ (estimated)", "not reported", "11.25 µJ"]
+ctx["energy / decapsulation"] = ["–"] * 4 + [f"{e_tot:.1f} µJ (estimated)", "not reported", "11.25 µJ", "not reported", "not reported",
+                                            "6.4 µJ at the lowest level (operation not named in the abstract)"]
 ctx["evidence"] = ["RTL simulation", "routed block", "routed block, RTL simulation", "RTL simulation, board",
-                   "RTL and gate-level simulation, post-layout timing, energy from zero-delay activity", "published, FPGA", "published, silicon"]
+                   "RTL and gate-level simulation, post-layout timing, energy from zero-delay activity", "published, FPGA", "published, silicon",
+                   "published, FPGA", "published, FPGA; 18.9 µs for ML-KEM-512 (operation not named in the abstract)", "published, silicon"]
 # guards for the comparison in the text below
 assert int(P.loc["ntt_packed2", "cycles"]) < 1289 and round(int(P.loc["ntt_packed2", "cycles"]) / 448, 1) == 1.3   # "1.3 times the 448"
 assert (round(t_["Xing and Li, TCHES 2021 [13]"]), round(t_["HSKEM, streamed system (this work)"]), round(t_["HSKEM-2, signed-off chip (this work)"])) == (41, 137, 275)
@@ -2299,6 +2310,7 @@ kge = m["finish__design__instance__area__stdcell"] / 3.7536 / 1e3       # sky130
 assert round(kge) == 632 and round(e_tot, 1) == 27.3                             # "632 kGE"
 assert 5.2 < cyc_["sram_only_sysBCD"] / 6668 < 5.6
 assert 1.02 < dc["H"]["fpga"] / 6668 < 1.03                     # "within 3 %"
+assert round(100 * (dc["H"]["fpga"] / 6100 - 1)) == 12          # "12 % more cycles" than [22]
 ctx
 """)
 
@@ -2315,6 +2327,12 @@ Against Sapphire's silicon (1.1 V, 72 MHz), HSKEM-2 needs 20.7 times fewer cycle
 energy (ours estimated). It also takes 16 times the area, although Sapphire's paper does not say whether its
 core includes the RISC-V processor. HSKEM-2's standard cells total 632 kGE (thousand NAND2 equivalents,
 NAND2_1 = 3.7536 µm²), tap cells, clock tree and buffers included; its 18 macros take half the area.
+
+The field has moved on since these two designs. A compact design of 2025 [22] needs 6.1k cycles with 5,487 LUTs, so
+that the streamed system takes 12 % more cycles; a design of 2026 [23] completes ML-KEM-512 in 18.9 µs at 210 MHz;
+and a fabricated 180 nm design reports 6.4 µJ with 7.37 kB of SRAM [24]. All three cover the three security levels,
+which HSKEM does not. HSKEM leads none of these measures: its contribution is the combination of key custody, one
+single-port store and a chip signed off with open tools, not a speed, area or energy record.
 """)
 
 md(r"""
@@ -2390,6 +2408,8 @@ bind_ = rtl_.split("SUB_MLKEM_SESSION_BIND: begin")[1][:900]
 assert bind_.index("last_transaction_counter <= ext_counter") < bind_.index("ext_data[255:248]")   # a refused binding still counts
 c4_ = re.search(r"C4_INTERNAL_K_HSM_RESULT: (.*)", (ROOT/"results/fpga/revc_session_c4.log").read_text(errors="replace"))[1]
 assert c4_.startswith("PASS") and len(re.findall(r"\b(\w+)=PASS", c4_)) == 8 and "raw_secret_export=0" in c4_   # "eight board checks"
+hm_ = json.loads((ROOT/"results/leakage_hmac/tvla_summary.json").read_text())
+assert (hm_["cycles_over_4p5"], hm_["cycles"], hm_["control_cycles_over_4p5"]) == (126, 264, 0)   # Section 13: "126 of 264 cycles"
 print("RTL statements of the key-custody limit hold")
 """)
 
@@ -2406,7 +2426,10 @@ The results hold within the following boundaries.
   markers inside the macros, whose cause is not established; the KLayout deck accepts both. LVS abstracts the SRAMs (verified separately at transistor level) and six multi-finger
   cells (each proven by a switch-level truth table). 158 transition violations remain, all at SRAM address
   pins, and no capacitance limit is violated (Appendix C.2).
-* **Timing.** SKY130 provides one extraction corner, so every corner is timed with nominal parasitics. Of the
+* **Timing.** Every corner is timed with the flow's nominal parasitics. The PDK's own rule sets do not replace
+  them: one group holds no coupling capacitance and the other is inconsistent (Appendix C.1). With all wire resistance and
+  capacitance raised by 15 %, the slow corner keeps 0.34 ns of setup slack at 25 MHz; with resistance raised by 18 % and
+  capacitance by 20 %, one endpoint misses by 8 ps. Hold stays met in every scaled case. Of the
   macros' timing only the clock-to-output times are measured in SPICE; setup and hold remain OpenRAM's typical
   values. Hold at the entropy, PUF and service inputs assumes that their drivers share the core clock tree; under
   the constraints as written, 286 slow-corner endpoints miss hold by up to 1.05 ns. With every cell delay derated
@@ -2428,14 +2451,17 @@ The results hold within the following boundaries.
   against injected faults is lower, and the Karatsuba
   products form the sum of two secret coefficients, which masking must protect.
 * **Key custody.** Once a session is bound to an agreed key, the session service keeps that key from a host compromised
-  later, provided the key was agreed with an honest peer; this is an argument, not a proof. In the signed-off chip each binding
+  later, provided the key was agreed with an honest peer. This rests on an argument and on bounded checks, not on a proof. Model
+  checking of the session logic finds no way, within 48 cycles of reset, for the key to alter a host response or for the counter, epoch
+  and lock rules to break, with the lock limit lowered to two; proofs without a bound did not close (Appendix E.3). In the signed-off chip each binding
   takes a fresh 64-bit epoch from the entropy input, each sealed (protected) message must raise the counter by exactly one,
   and sixteen messages with rejected authentication tags lock the receive path until the next binding or zeroization (sixteen simulated
   checks; eight board checks cover all but the lock). A refused binding keeps its counter, but zeroizing needs no
   authentication and sixteen forged frames block the receive path. The published RTL and the original FPGA
   configuration keep the earlier session logic (Appendix E.3); attestation and key confirmation lie outside the goals.
 * **Security and hardware.** The leakage assessments, of register transitions and of switched capacitance on
-  the routed netlist, are simulations, not measured power; they cover first-order attacks on the NTT only. A
+  the routed netlist, are simulations, not measured power; they cover first-order attacks on the NTT and, in the register
+  model, on the session HMAC, where 126 of 264 cycles exceed the threshold (`results/leakage_hmac`). A
   masked ML-KEM must also protect the non-linear steps, as the open design of [20] does, and the ciphertext
   comparison, which in one published attack on an FPGA leaked more the wider its datapath [21], was not assessed. The
   PUF and entropy sources are ring oscillators on the FPGA and service interfaces on the ASIC, and the FPGA
@@ -3005,6 +3031,50 @@ assert [b_ - a_ for a_, b_ in zip(cyc_(h_sim), cyc_(chip_sim))] == [512, 10, 11]
 """)
 
 md(r"""
+**Parasitic corners.** The sign-off uses the extraction rules of the flow (`rcx_patterns.rules` of OpenROAD-flow-scripts). The
+PDK ships six more OpenRCX rule sets, three for OpenLane and three derived from Magic, and `flow/chip_rev_c/revc/rc_corners.sh`
+applies them all to the signed-off database. The OpenLane sets hold no coupling capacitance, and their minimum, nominal and
+maximum differ only in resistance, so they see less than half of the flow's capacitance. The sets derived from Magic do not
+agree with each other: their minimum holds almost twice the capacitance of their nominal, and their coupling between
+minimum-spaced met2 wires is 0.53 fF/µm, where a parallel-plate estimate gives 0.09 fF/µm and the flow's rules 0.13 fF/µm.
+With them the slow corner would fail by 12 to 42 ns. The sign-off therefore stays with the flow's rules, and the same
+script scales its parasitics instead. The resistance factors follow the PDK's models, from ±11 % for met1 and met2 to ±18 % for
+met5; those models give no corner for wire capacitance, so its factors are an assumption, and no field solver has checked
+any of these rule sets. All slacks are in ns at the 40 ns clock, with the I/O model of the table above.
+""")
+
+code(r"""
+rc = json.loads((R9/"rc_corners.json").read_text())
+S, rt, rr = rc["sets"], rc["rule_tables_met2_over_met1"], rc["pdk_resistance_ratio_high_low"]
+NM = {"orfs": "flow's rules, repeated (control)", "nom": "PDK, OpenLane set, nominal", "min": "PDK, OpenLane set, minimum", "max": "PDK, OpenLane set, maximum",
+      "mnom": "PDK, Magic set, nominal", "mmin": "PDK, Magic set, minimum", "mmax": "PDK, Magic set, maximum",
+      "hi10": "sign-off, R × 1.11, C × 1.10", "hi15": "sign-off, R × 1.15, C × 1.15", "hi20": "sign-off, R × 1.18, C × 1.20", "hi30": "sign-off, R × 1.30, C × 1.30",
+      "lo20": "sign-off, R × 0.82, C × 0.80", "lo30": "sign-off, R × 0.70, C × 0.70"}
+def slack(t, c, k):
+    v = [S[t]["corners"][x][k] for x in c if x in S[t]["corners"]]
+    return f"{min(v):+.3f}" if v else "–"
+print("wire capacitance, slack in ns at the 40 ns clock; fast-corner hold is the smaller of the SPICE and the OpenRAM macro views")
+display(pd.DataFrame([{"parasitics": NM[t], "total wire C [pF]": f"{S[t]['total_net_cap_pF']:,.0f}",
+                       "slow setup": slack(t, ["ss_spice"], "setup_wns"), "slow hold": slack(t, ["ss_spice"], "hold_wns"),
+                       "typical setup": slack(t, ["tt_spice"], "setup_wns"), "typical hold": slack(t, ["tt_spice"], "hold_wns"),
+                       "fast setup": slack(t, ["ff_spice"], "setup_wns"), "fast hold": slack(t, ["ff_spice", "ff_view"], "hold_wns")}
+                      for t in NM]).set_index("parasitics"))
+ss = lambda t, k="setup_wns": S[t]["corners"]["ss_spice"][k]
+# the control reproduces the sign-off, and the guards for the statements above and in Section 13
+assert all(S["orfs"]["corners"][f"{c}_spice"][k] == ru[f"{c}_spice_soc"][k] for c in ("ss", "tt", "ff") for k in ("setup_wns", "hold_wns"))
+assert S["nom"]["total_net_cap_pF"] == S["min"]["total_net_cap_pF"] == S["max"]["total_net_cap_pF"]    # "differ only in resistance"
+assert rt["spef_extractor_nom"]["coupling_pF_per_um"] == 0 and S["orfs"]["total_net_cap_pF"] / S["nom"]["total_net_cap_pF"] > 2   # "less than half"
+assert 1.9 < S["mmin"]["total_net_cap_pF"] / S["mnom"]["total_net_cap_pF"] < 2                         # "almost twice"
+assert round(rt["magic_nom"]["coupling_pF_per_um"] * 1e3, 2) == 0.53 and round(rt["flow"]["coupling_pF_per_um"] * 1e3, 2) == 0.13
+assert rt["flow"]["spacing_um"] == 0.14 and round(8.854e-3 * 4.0 * 0.36 / rt["flow"]["spacing_um"], 2) == 0.09   # eps0, relative permittivity 4, met2 0.36 um thick
+assert (round(-ss("mnom")), round(-ss("mmax"))) == (12, 42)                                            # "fail by 12 to 42 ns"
+assert (round(100 * (rr["m1"][0] - 1)), round(100 * (rr["m5"][0] - 1)), round(100 * (1 - rr["m1"][1])), round(100 * (1 - rr["m5"][1]))) == (11, 18, 11, 18)   # "±11 % ... ±18 %"
+assert round(ss("hi15"), 2) == 0.34 and S["hi15"]["corners"]["ss_spice"]["setup_violating_endpoints"] == 0   # Section 13: "0.34 ns"
+assert round(ss("hi20") * 1e3) == -8 and S["hi20"]["corners"]["ss_spice"]["setup_violating_endpoints"] == 1  # Section 13: "one endpoint misses by 8 ps"
+assert all(v["hold_wns"] > 0 for t in ("hi10", "hi15", "hi20", "hi30", "lo20", "lo30") for v in S[t]["corners"].values())   # "in every scaled case"
+""")
+
+md(r"""
 ### C.2 The rendered layout and the sign-off record
 
 The rendering (about 2.5 µm per pixel) shows the SRAM macros along the left and top edges and in the lower
@@ -3361,6 +3431,24 @@ epoch is a fixed label plus the host's binding counter, unique only until reset,
 increase, so that a compromised host can obtain tags for future counters until the next binding, and a refused
 binding consumes its counter. The signed-off chip adds the changes of Section 13 behind a
 compile-time switch (`flow/chip_rev_c/rtl/revc_edit.py`).
+
+`flow/chip_rev_c/formal/` states six properties of that session logic on the ports of `hsm_shell`, in the chip's
+configuration, with the HMAC outside the shell so that its timing and digests are free inputs. SymbiYosys with Bitwuzla checks
+them for 48 cycles from reset, with the rejection limit lowered from 16 to 2 so that the lock comes within reach. A
+reachability task shows that a binding, sealed and received frames and the lock all occur.
+k-induction passes its base case but not its induction step, so these are bounded checks, not proofs.
+""")
+
+code(r"""
+fm = json.loads((ROOT/"results/fullchip/rev_c/session_formal.json").read_text())
+display(pd.Series(fm["properties"], name="property").to_frame())
+display(pd.DataFrame(fm["tasks"]).T[["checks", "depth", "status", "elapsed_s"]].rename_axis("task"))
+ft = fm["tasks"]
+assert fm["hsm_shell_sha256"] in (R9/"root_sha256.txt").read_text()                                   # the RTL of the signed-off chip
+assert (ft["props_bmc"]["status"], ft["miter_bmc"]["status"], ft["props_cover"]["status"]) == ("PASS", "PASS", "PASS")
+assert ft["props_bmc"]["depth"] == ft["miter_bmc"]["depth"] == 48 and ft["props_cover"]["cover_traces"] == 4
+assert (fm["rejection_limit_in_the_model"], fm["rejection_limit_on_the_chip"]) == (2, 16) and len(fm["properties"]) == 6
+assert all(ft[t]["basecase"] == "pass" and ft[t]["induction_step"] == "FAIL" and ft[t]["status"] == "UNKNOWN" for t in ("props_prove", "miter_prove"))
 """)
 
 md(r"""
@@ -3435,6 +3523,15 @@ author's responsibility.
     doi:10.46586/tches.v2026.i2.272-295; code: https://github.com/HWSec-CSIC/hope-mlkem.
 21. D. Ranney, Y. I. Makaram, A. A. Ding, Y. Fei, "Exploring side-channel protections in hardware implementations
     of PQC ML-KEM verification", arXiv:2606.31681, 2026.
+22. T.-H. Nguyen, D.-T. Dam, P.-P. Duong, B. Kieu-Do-Nguyen, C.-K. Pham, T.-T. Hoang, "Efficient hardware implementation of the
+    lightweight CRYSTALS-Kyber", *IEEE Transactions on Circuits and Systems I: Regular Papers*, vol. 72, no. 2, pp. 610–622, 2025,
+    doi:10.1109/TCSI.2024.3443238.
+23. P. Fan, Z. Yan, W. Guan, L. Liang, "A high-performance ML-KEM architecture with task-level parallelism",
+    *IEEE Transactions on Very Large Scale Integration (VLSI) Systems*, vol. 34, no. 6, pp. 1786–1799, 2026,
+    doi:10.1109/TVLSI.2026.3677808.
+24. T.-H. Nguyen, T.-K. Dang, D.-T. Dam, K.-D. Nguyen, P.-P. Duong, C.-K. Pham, T.-T. Hoang, "An area-time efficient hardware
+    architecture for ML-KEM post-quantum cryptography standard", *IEEE Access*, vol. 13, pp. 103834–103847, 2025,
+    doi:10.1109/ACCESS.2025.3579379.
 """)
 
 # ------------------------------------------------------------ run time

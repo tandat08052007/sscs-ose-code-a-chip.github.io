@@ -1,10 +1,10 @@
 {
- "total": 244,
- "asserted": 219,
- "shown": 19,
+ "total": 261,
+ "asserted": 230,
+ "shown": 25,
  "neither": 6,
  "executed_outputs_present": true,
- "covered_pct": 97.5,
+ "covered_pct": 97.7,
  "neither_by_section": {
   "0. Setup": [
    "700"

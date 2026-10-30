@@ -76,6 +76,10 @@ flow/chip_rev_c/rtl/make_root.sh /tmp/hskem2c        # prints ROOT_MATCHES_CHIP
 flow/chip_rev_c/revc/run_session_tb.sh /tmp/hskem2c/root -DTRUSTEDGE_REVC   # 16 checks; without the define: 9
 ```
 
+## Parasitic corners and session checks
+
+`revc/rc_corners.sh` re-extracts the routed database with the flow's rules and with the six OpenRCX rule sets of the PDK, scales the sign-off parasitics, and repeats the sign-off STA on every set (`revc/rc_scale.py`, `revc/rc_collect.py`; result `results/fullchip/rev_c/rc_corners.json`, Appendix C.1). It only reads the signed-off files. `formal/` holds the bounded model checks of the session logic (`formal/README.md`; result `results/fullchip/rev_c/session_formal.json`, Appendix E.3).
+
 ## Tools
 
 OpenROAD-flow-scripts at commit `6101364b` (its Yosys 0.68+ and OpenROAD `f5522624`), with one patch to the detailed

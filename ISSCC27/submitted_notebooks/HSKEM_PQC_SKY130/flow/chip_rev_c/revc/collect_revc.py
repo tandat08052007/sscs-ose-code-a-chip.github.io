@@ -140,7 +140,7 @@ def sta(out: pathlib.Path) -> None:
     rowsp = [l for l in lines if re.match(r"\s+\d+\s+[\d.]+\s+[\d.]+\s+[\d.]+\s+[\d.]+\s+[v^]", l)]
     delays = [(float(l.split()[3]), l.split()[-1].strip("()")) for l in rowsp]
     rep = [d for d, c in delays if re.match(r"sky130_fd_sc_hd__buf", c) and d < 0.4][:]
-    res = {"clock_period_ns": 40.0, "rc": "OpenRCX nominal (the only SKY130 extraction corner)",
+    res = {"clock_period_ns": 40.0, "rc": "OpenRCX with the flow's rcx_patterns.rules; the PDK's rule sets and scaled parasitics are in rc_corners.json",
            "macro_views": "clock-to-output of every macro type at every corner measured in SPICE (views.json); "
                           "input setup/hold from the OpenRAM views",
            "io_model": {"soc": "service ports timed against a virtual clock carrying the core clock's measured "
