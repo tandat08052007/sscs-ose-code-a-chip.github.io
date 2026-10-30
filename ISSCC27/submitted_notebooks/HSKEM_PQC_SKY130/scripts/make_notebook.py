@@ -3361,7 +3361,7 @@ md(r"""
 
 ### E.1 Run time in Colab
 
-A `Run all` took 15 minutes in a clean Ubuntu 22.04 container with Colab's settings and four cores, mostly in Sections 4, 5 and 7 and Appendix B; a free Colab instance has two cores, so expect up to half an hour.
+A `Run all` took 15 minutes in a clean Ubuntu 22.04 container with Colab's settings and four cores, mostly in Sections 4, 5 and 7 and Appendix B; a free Colab instance has two cores, and a full run there took about 35 minutes.
 The last cell reports the time per section (the stored table is from a local run). Cells marked `RUN_…` repeat the long runs and are off by default, except
 `RUN_ACVP_RTL` and `RUN_GLS`, which run in Colab only.
 """)

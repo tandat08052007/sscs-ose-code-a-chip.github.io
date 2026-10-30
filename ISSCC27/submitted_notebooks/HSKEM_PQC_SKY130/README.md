@@ -40,7 +40,7 @@ text are guarded by assertions against the data, so the prose cannot silently dr
 2. In Colab the notebook re-runs the golden-model checks, the NIST ACVP vectors, the RTL simulations,
    the SKY130 synthesis, the design iteration, a gate-level simulation of a routed netlist and the
    leakage assessment. A complete run took 15 minutes in a clean Ubuntu 22.04 container with Colab's settings and four
-   cores; on a free Colab instance with two cores, expect up to half an hour. The last cell
+   cores; on a free Colab instance with two cores, a full run took about 35 minutes. The last cell
    reports the measured time of every section.
 3. Place-and-route and the full-system simulation take longer than a default run should; their
    committed results are read from `results/`. Both can be repeated from the notebook, also in Colab,
