@@ -2490,6 +2490,8 @@ The results hold within the following boundaries.
 
 * **Pre-silicon and uncertified.** Nothing has been fabricated, and the design holds no NIST algorithm
   (CAVP) or module (CMVP) certificate.
+* **Input checks.** The RTL omits two input checks of FIPS 203: the modulus check on an imported encapsulation
+  key and the hash check on a decapsulation key. The host must perform them.
 * **Physical verification.** The KLayout DRC deck passes only after a script closes implant gaps inside the
   OpenRAM macros (Appendix C.3). Magic's deck, a cross-check, still flags 368 poly-contact markers in
   two standard cells, whose ORFS layout differs from the PDK's current version. It also flags 23.8 million
