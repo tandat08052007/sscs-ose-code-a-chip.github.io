@@ -140,10 +140,10 @@ the table above, the chip figure of Section 9, the lessons of Section 12 and the
 
 code(r"""
 from IPython.display import HTML, display
-# streamed from GitHub, not embedded, so that the notebook stays small; zoom from scripts/render_zoom_frames.py, decapsulation from scripts/make_decaps_video.py, board from scripts/make_board_clip.py
+# streamed from GitHub, not embedded, so that the notebook stays small; zoom from scripts/render_zoom_frames.py, decapsulation from scripts/make_decaps_video.py, board from scripts/make_board_clip.py, the other scenes from scripts/make_tour_scenes.py
 VIDEO_URL = "https://raw.githubusercontent.com/tandat08052007/sscs-ose-code-a-chip.github.io/isscc27-hskem-pqc-sky130/ISSCC27/submitted_notebooks/HSKEM_PQC_SKY130/figures/hskem2_tour.mp4"
 display(HTML(f'<video src="{VIDEO_URL}" width="860" controls muted playsinline></video>'
-             f'<p>A zoom into the signed-off layout, one decapsulation from the RTL simulation, and the board. If the video does not play, <a href="{VIDEO_URL}" target="_blank">open it here</a>.</p>'))
+             f'<p>A zoom into the signed-off layout, one decapsulation from the RTL simulation, the cycles removed step by step, the board and the leakage test. If the video does not play, <a href="{VIDEO_URL}" target="_blank">open it here</a>.</p>'))
 """)
 
 # ------------------------------------------------------------ 0. setup
