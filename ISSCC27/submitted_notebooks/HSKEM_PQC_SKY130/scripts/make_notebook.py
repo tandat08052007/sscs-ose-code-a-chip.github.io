@@ -133,9 +133,18 @@ consumption depending on secret data, with $|t| > 4.5$ meaning detectable leakag
 a secret into random shares; and the PUF (physically unclonable function) derives a chip-unique key.
 
 **How it is told.** Part I checks correctness, Part II prices HSKEM-1's decisions and follows the
-measurements to HSKEM-2, and Part III takes the RTL to the board and asks what it leaks. For a ten-minute
-reading, the abstract and the table above, the lessons of Section 12 and the limits of Section 13 suffice.
+measurements to HSKEM-2, and Part III takes the RTL to the board and asks what it leaks. For a quick
+reading, start with the abstract, which introduces HSKEM-1 and HSKEM-2, then watch [the video](https://raw.githubusercontent.com/tandat08052007/sscs-ose-code-a-chip.github.io/isscc27-hskem-pqc-sky130/ISSCC27/submitted_notebooks/HSKEM_PQC_SKY130/figures/hskem2_tour.mp4) below and look at
+the table above, the chip figure of Section 9, the lessons of Section 12 and the limits of Section 13.
 """.replace("@GLANCE_TABLE@", GLANCE_MD))
+
+code(r"""
+from IPython.display import HTML, display
+# streamed from GitHub, not embedded, so that the notebook stays small; zoom from scripts/render_zoom_frames.py, decapsulation from scripts/make_decaps_video.py, board from scripts/make_board_clip.py
+VIDEO_URL = "https://raw.githubusercontent.com/tandat08052007/sscs-ose-code-a-chip.github.io/isscc27-hskem-pqc-sky130/ISSCC27/submitted_notebooks/HSKEM_PQC_SKY130/figures/hskem2_tour.mp4"
+display(HTML(f'<video src="{VIDEO_URL}" width="860" controls muted playsinline></video>'
+             f'<p>A zoom into the signed-off layout, one decapsulation from the RTL simulation, and the board. If the video does not play, <a href="{VIDEO_URL}" target="_blank">open it here</a>.</p>'))
+""")
 
 # ------------------------------------------------------------ 0. setup
 md(r"""
@@ -1695,7 +1704,35 @@ The NTT engine is now busy for two thirds of a decapsulation and the sponge for 
 eight transforms alone take about 4,550 cycles: the shared engines, not the datapath, set the pace. With
 the row-serialized Keccak the sponge is busy in more than 99.5 % of all cycles: the core that added only
 3.9 % to a decapsulation of HSKEM-1 (on top of the single-port store) would now add 36 %. What a decision costs depends on everything around it, which is why HSKEM-2
-returns to the one-round core.
+returns to the one-round core. The timeline below shows the same change cycle by cycle: on a common scale the engines
+of HSKEM-1 run one after the other with long gaps, while those of HSKEM-2 overlap.
+""")
+
+code(r"""
+tl = json.loads((ROOT/"results/system_sim/decaps_timeline.json").read_text())
+LANES = [("NTT engine", lambda r: r["ntt"], ps.NTT),
+         ("Keccak permutation", lambda r: r["perm"], ps.KECCAK), ("sponge in and out", lambda r: r["sponge"] and not r["perm"], ps.KECCAK_ALT),
+         ("neither engine", lambda r: not r["ntt"] and not r["sponge"], ps.OTHER)]
+def lanes(ax, seg, end):
+    for k, (name, on, c) in enumerate(LANES):
+        spans = [(r["t"], (seg[i + 1]["t"] if i + 1 < len(seg) else end) - r["t"]) for i, r in enumerate(seg) if on(r)]
+        ax.broken_barh(spans, (k - 0.36, 0.72), facecolor=c, edgecolor="none")
+    ax.set_yticks(range(len(LANES)), [n for n, _, _ in LANES], fontsize=9); ax.invert_yaxis(); ax.grid(axis="y", visible=False)
+h1_, h2_ = tl["hskem1"], tl["hskem2"]
+fig, axs = plt.subplots(3, 1, figsize=(11, 5.8), layout="constrained")
+lanes(axs[0], h1_["segments"], h1_["cycles"]); axs[0].set_xlim(0, h1_["cycles"] * 1.02)
+axs[0].set_title(f"(a) HSKEM-1: {h1_['cycles']:,} cycles", fontsize=10)
+lanes(axs[1], h2_["segments"], h2_["cycles"]); axs[1].set_xlim(0, h1_["cycles"] * 1.02)
+axs[1].set_title(f"(b) HSKEM-2 on the same scale: {h2_['cycles']:,} cycles", fontsize=10)
+lanes(axs[2], h2_["segments"], h2_["cycles"]); axs[2].set_xlim(0, h2_["cycles"] * 1.02)
+axs[2].set_title("(c) HSKEM-2 enlarged: the engines overlap through most of the decapsulation", fontsize=10)
+for a_ in axs:
+    ps.thousands(a_)
+axs[2].set_xlabel("clock cycle of the decapsulation")
+fig.suptitle("One decapsulation, cycle by cycle", x=0.01, ha="left", fontsize=13, fontweight="bold")
+ps.source(fig, "results/system_sim/decaps_timeline.json (tb/decaps_timeline.sv, read-only probe in the full-system testbench)", y=-0.01)
+ps.save_pdf(fig, "decaps_timeline"); plt.show()
+assert h1_["cycles"] == psy_["published"] and h2_["cycles"] == 6875
 """)
 
 # ---------------------------------------------------------- 9. HSKEM-2
@@ -1717,6 +1754,17 @@ and meets setup and hold at the slow, typical and fast corners with the macros' 
 SPICE, which OpenRAM's views understate tenfold at the slow corner. Within the limits of Section 13 it passes LVS
 and the KLayout DRC deck of SKY130, and its routed database is published (layout by cell class below; by block,
 Appendix C.5).
+""")
+
+md(r"""
+The first figure shows what was built: the two shared engines, the three controllers, where each of the 18 macros sits
+and which buses join them. The second opens one butterfly down to its operators.
+""")
+
+code(r"""
+display(SVG(filename=str(ROOT/"figures/hskem2_datapath.svg")))
+display(SVG(filename=str(ROOT/"figures/hskem2_butterfly.svg")))
+assert (ROOT/"figures/hskem2_datapath.svg").read_text(encoding="utf-8").count('fill="#f2cc8f"') == 19   # 18 macros and the legend swatch
 """)
 
 code(r"""
@@ -1789,17 +1837,39 @@ assert "TB_TRUSTEDGE_SPI_RESULT: ALL PASS" in chip_sim
 assert set(re.findall(r"\bk=([0-9a-f]+)", chip_sim)) == set(re.findall(r"\bk=([0-9a-f]+)", h_sim))   # same shared keys
 import placement_map as pm
 from matplotlib.patches import Patch
-fig, ax = plt.subplots(figsize=(8, 8.4))
-pm.draw_chip(ax, R9/"cells.csv.gz")
-ax.set_position([0.02, 0.01, 0.96, 0.88])          # square die directly under the legend
-fig.legend([Patch(color=c) for _, c in pm.CLASSES] + [Patch(facecolor=ps.MEM, edgecolor=ps.INK_2)],
-           [n for n, _ in pm.CLASSES] + ["OpenRAM SRAM macro (bits × words)"], ncols=4, loc="upper left",
-           bbox_to_anchor=(0.02, 0.955), frameon=False)
-ps.scale_bar(ax, 500, "0.5 mm", frac=(0.8, 0.955))
+fig = plt.figure(figsize=(12, 8.6))
+ax = fig.add_axes([0.01, 0.02, 0.68, 0.9])
+owners = pm.draw_blocks(ax, R9/"cells.csv.gz", R9/"block_map.csv.gz")
+blk9 = pd.read_csv(R9/"blocks.csv")
+assert owners == {r.block: r.sram_macros for r in blk9.itertuples() if r.sram_macros}    # macros agree with the netlist count
+ps.scale_bar(ax, 500, "0.5 mm", frac=(0.76, 0.955))
+sram_bytes = int(blk9.sram_bits.sum()) // 8
+rows9 = [("Process", "SKY130 HD, open PDK"), ("Die", f"{m['finish__design__die__area'] / 1e6:.1f} mm²"),
+         ("Standard cells", f"{m['finish__design__instance__count__stdcell']:,.0f}"),
+         ("Flip-flops", f"{m['finish__design__instance__count__class:sequential_cell']:,.0f}"),
+         ("SRAM", f"18 macros, {sram_bytes:,} bytes"), ("Clock", f"{1e3 / fc['clock_target_ns']:.0f} MHz, three corners"),
+         ("Decapsulation", f"{cyc_b:,} cycles"), ("Energy per decapsulation", f"{e_tot:.1f} µJ, estimate"),
+         ("Checks", "LVS match, KLayout DRC clean"), ("Fabricated", "no")]
+tb = fig.add_axes([0.705, 0.04, 0.29, 0.88]); tb.axis("off"); tb.set_xlim(0, 1); tb.set_ylim(0, 1)
+for i, (k_, v_) in enumerate(rows9):
+    y_ = 1 - i * 0.034
+    tb.text(0, y_, k_, fontsize=9, color=ps.INK_2, va="top")
+    tb.text(1, y_, v_, fontsize=9, color=ps.INK, fontweight="bold", va="top", ha="right")
+y_ = 1 - len(rows9) * 0.034 - 0.03
+tb.text(0, y_, "Blocks", fontsize=10, fontweight="bold", va="top")
+flops_ = dict(zip(blk9.block, blk9.flops))
+for i, (b_, (name_, col_)) in enumerate(pm.BLOCK_STYLE.items()):
+    y2_ = y_ - 0.034 - i * 0.0345
+    tb.add_patch(plt.Rectangle((0, y2_ - 0.021), 0.05, 0.021, color=col_, ec="none"))
+    tb.text(0.07, y2_, f"{i + 1}  {name_}", fontsize=9, color=ps.INK, va="top")
+    tb.text(1, y2_, f"{flops_.get(b_, 0):,} FF" if flops_.get(b_, 0) else "SRAM only", fontsize=8.5, color=ps.INK_2, va="top", ha="right")
+tb.text(0, y_ - 0.034 - len(pm.BLOCK_STYLE) * 0.0345 - 0.012, "Numbers mark each block on the die. Outlined boxes are SRAM\nmacros (bits × words) "
+        "in the colour of their block. Each 20 µm\ntile takes the block owning most of its registers and logic.",
+        fontsize=8, color=ps.INK_2, va="top")
 fig.suptitle(f"HSKEM-2 on SKY130: {m['finish__design__die__area'] / 1e6:.1f} mm², "
              f"{m['finish__design__instance__count__stdcell']:,.0f} standard cells, 18 SRAM macros",
-             x=0.02, ha="left", y=0.99, fontsize=12.5, fontweight="bold")
-ps.source(fig, "results/fullchip/rev_c/cells.csv.gz (placement of the signed-off layout) and summary.json", y=0.0)
+             x=0.01, ha="left", y=0.975, fontsize=12.5, fontweight="bold")
+ps.source(fig, "results/fullchip/rev_c/cells.csv.gz and block_map.csv.gz (signed-off layout), summary.json, blocks.csv", y=0.012)
 plt.show()
 """)
 
@@ -2246,7 +2316,7 @@ md(r"""
 
 The table compares HSKEM with the compact FPGA design of Xing and Li [13] and the Sapphire
 crypto-processor [14]; platforms differ and Sapphire implements round-1 Kyber, so it gives orders of
-magnitude, not a ranking. The last three rows are more recent and come from the abstracts of their papers.
+magnitude, not a ranking. The last three rows are more recent.
 """)
 
 code(r"""
@@ -2282,7 +2352,7 @@ ctx = pd.DataFrame([
      "cycles / NTT": "–", "cycles / decapsulation": "6.1k (k = 2)",
      "resources": "complete KEM, three security levels: 5,487 LUTs, 2 DSP, 3.5 BRAM"},
     {"design": "Fan et al., TVLSI 2026 [23]", "platform": "Artix-7 FPGA, 210 MHz",
-     "cycles / NTT": "–", "cycles / decapsulation": "–",
+     "cycles / NTT": "112", "cycles / decapsulation": "1,936 (k = 2)",
      "resources": "complete KEM, three security levels: 13.8k LUTs, 9.6k flip-flops"},
     {"design": "Nguyen et al., IEEE Access 2025 [24]", "platform": "180 nm CMOS",
      "cycles / NTT": "–", "cycles / decapsulation": "–",
@@ -2291,13 +2361,13 @@ ctx = pd.DataFrame([
 # decapsulation time at each design's clock, energy where it is known, and the evidence behind each row
 t_ = {"HSKEM, streamed system (this work)": int(fb.decaps_cycles.iloc[0]) / 50,
       "HSKEM-2, signed-off chip (this work)": (pw["window_cycles"] + 1) * pw["clock_ns"] / 1e3,
-      "Xing and Li, TCHES 2021 [13]": 41.3, "Sapphire, TCHES 2019 [14]": 142309 / 72}   # [13]: 41.3 µs as published (Table 3)
+      "Xing and Li, TCHES 2021 [13]": 41.3, "Sapphire, TCHES 2019 [14]": 142309 / 72, "Fan et al., TVLSI 2026 [23]": 1936 / 210}   # [13]: 41.3 µs as published (Table 3)
 ctx["decapsulation [µs]"] = [f"{t_[d]:,.1f}" if d in t_ else "–" for d in ctx.index]
 ctx["energy / decapsulation"] = ["–"] * 4 + [f"{e_tot:.1f} µJ (estimated)", "not reported", "11.25 µJ", "not reported", "not reported",
-                                            "6.4 µJ at the lowest level (operation not named in the abstract)"]
+                                            "6.4 µJ for KeyGen, encapsulation and decapsulation together"]
 ctx["evidence"] = ["RTL simulation", "routed block", "routed block, RTL simulation", "RTL simulation, board",
                    "RTL and gate-level simulation, post-layout timing, energy from zero-delay activity", "published, FPGA", "published, silicon",
-                   "published, FPGA", "published, FPGA; 18.9 µs for ML-KEM-512 (operation not named in the abstract)", "published, silicon"]
+                   "published, FPGA", "published, FPGA; 18.9 µs for all three operations", "published, silicon"]
 # guards for the comparison in the text below
 assert int(P.loc["ntt_packed2", "cycles"]) < 1289 and round(int(P.loc["ntt_packed2", "cycles"]) / 448, 1) == 1.3   # "1.3 times the 448"
 assert (round(t_["Xing and Li, TCHES 2021 [13]"]), round(t_["HSKEM, streamed system (this work)"]), round(t_["HSKEM-2, signed-off chip (this work)"])) == (41, 137, 275)
@@ -2329,8 +2399,8 @@ core includes the RISC-V processor. HSKEM-2's standard cells total 632 kGE (thou
 NAND2_1 = 3.7536 µm²), tap cells, clock tree and buffers included; its 18 macros take half the area.
 
 The field has moved on since these two designs. A compact design of 2025 [22] needs 6.1k cycles with 5,487 LUTs, so
-that the streamed system takes 12 % more cycles; a design of 2026 [23] completes ML-KEM-512 in 18.9 µs at 210 MHz;
-and a fabricated 180 nm design reports 6.4 µJ with 7.37 kB of SRAM [24]. All three cover the three security levels,
+that the streamed system takes 12 % more cycles; a design of 2026 [23] decapsulates in 1,936 cycles at 210 MHz, using memory banks with 96-bit words;
+and a fabricated 180 nm design reports 6.4 µJ for all three operations with 7.37 kB of SRAM, most of it dual-port [24]. All three cover the three security levels,
 which HSKEM does not. HSKEM leads none of these measures: its contribution is the combination of key custody, one
 single-port store and a chip signed off with open tools, not a speed, area or energy record.
 """)
